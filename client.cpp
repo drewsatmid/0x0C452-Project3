@@ -1,5 +1,12 @@
 #define WIN32_LEAN_AND_MEAN
 
+#include <windows.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <iostream>
+#include <sstream>
 #include <FL/Fl.H>
 #include <FL/Fl_Double_Window.H>
 #include <FL/Fl_Box.H>
@@ -9,12 +16,25 @@
 #include <FL/Fl_PNG_Image.H>
 #include <../rotation.h>
 #include <vector>
-#include <Windows.h>
-#include <winsock2.h>
-#include <WS2tcpip.h>
+
+// Need to link with Ws2_32.lib, Mswsock.lib, and Advapi32.lib
 #pragma comment (lib, "Ws2_32.lib")
+#pragma comment (lib, "Mswsock.lib")
+#pragma comment (lib, "AdvApi32.lib")
 
 #define MIDDLEX 475
+#define DEFAULT_BUFLEN 512
+#define DEFAULT_PORT "27015"
+
+	WSADATA wsaData;
+    SOCKET ConnectSocket = INVALID_SOCKET;
+    struct addrinfo *result = NULL,
+                    *ptr = NULL,
+                    hints;
+    char *sendbuf = "this is a test";
+    char recvbuf[DEFAULT_BUFLEN];
+    int iResult;
+    int recvbuflen = DEFAULT_BUFLEN;
 
 struct Pair{
 	int x;
@@ -34,252 +54,6 @@ bool moving = false;
 std::vector<Pair> pairs;
 
 Lines* arms;
-
-#define DEFAULT_BUFLEN 512
-#define DEFAULT_PORT "27015"
-
-class Server
-{
-	WSADATA wsaData;
-    int iResult;
-
-public:
-	Server()
-	{
-		
-		SOCKET ListenSocket = INVALID_SOCKET;
-		SOCKET ClientSocket = INVALID_SOCKET;
-		
-		struct addrinfo *result = NULL;
-		struct addrinfo hints;
-
-		int iSendResult;
-		char recvbuf[DEFAULT_BUFLEN];
-		int recvbuflen = DEFAULT_BUFLEN;
-    
-		// Initialize Winsock
-		iResult = WSAStartup(MAKEWORD(2,2), &wsaData);
-		if (iResult != 0) {
-			printf("WSAStartup failed with error: %d\n", iResult);
-			//return 1;
-		}
-
-		ZeroMemory(&hints, sizeof(hints));
-		hints.ai_family = AF_INET;
-		hints.ai_socktype = SOCK_STREAM;
-		hints.ai_protocol = IPPROTO_TCP;
-		hints.ai_flags = AI_PASSIVE;
-
-		// Resolve the server address and port
-		iResult = getaddrinfo(NULL, DEFAULT_PORT, &hints, &result);
-		if ( iResult != 0 ) {
-			printf("getaddrinfo failed with error: %d\n", iResult);
-			WSACleanup();
-			//return 1;
-		}
-
-		// Create a SOCKET for connecting to server
-		ListenSocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
-		if (ListenSocket == INVALID_SOCKET) {
-			printf("socket failed with error: %ld\n", WSAGetLastError());
-			freeaddrinfo(result);
-			WSACleanup();
-			//return 1;
-		}
-
-		printf("Binding\n");
-		// Setup the TCP listening socket
-		iResult = bind( ListenSocket, result->ai_addr, (int)result->ai_addrlen);
-		if (iResult == SOCKET_ERROR) {
-			printf("bind failed with error: %d\n", WSAGetLastError());
-			freeaddrinfo(result);
-			closesocket(ListenSocket);
-			WSACleanup();
-			//return 1;
-		}
-
-		freeaddrinfo(result);
-		printf("Listening\n");
-		iResult = listen(ListenSocket, SOMAXCONN);
-		if (iResult == SOCKET_ERROR) {
-			printf("listen failed with error: %d\n", WSAGetLastError());
-			closesocket(ListenSocket);
-			WSACleanup();
-			//return 1;
-		}
-		printf("Listening done\n");
-
-		// Accept a client socket
-		ClientSocket = accept(ListenSocket, NULL, NULL);
-		if (ClientSocket == INVALID_SOCKET) {
-			printf("accept failed with error: %d\n", WSAGetLastError());
-			closesocket(ListenSocket);
-			WSACleanup();
-			//return 1;
-		}
-		printf("Client Accepted\n");
-		closesocket(ListenSocket);
-
-
-		/*
-		version = MAKEWORD( 2, 0 );
-
-		error = WSAStartup( version, &wsaData );
-
-		if ( error != 0 )
-		{
-			
-			//return false;
-		}
-
-		if ( LOBYTE( wsaData.wVersion ) != 2 || HIBYTE( wsaData.wVersion ) != 0 )
-		{
-			
-			WSACleanup();
-			//return false;
-		}
-
-
-		SOCKET server;
-		printf("creating a socket\n");
-		server = socket( AF_INET, SOCK_STREAM, IPPROTO_TCP );
-
-		struct sockaddr_in sin;
-
-		memset( &sin, 0, sizeof sin );
-
-		sin.sin_family = AF_INET;
-		sin.sin_addr.s_addr = INADDR_ANY;
-		sin.sin_port = htons( 21 );
-
-		printf("Binding\n");
-		if ( bind( server, (sockaddr*)&sin, sizeof sin ) == SOCKET_ERROR )
-		{
-			//return FALSE;
-			printf("Binding failed\n");
-		}
-
-		printf("listening\n");
-		//while ( listen( server, SOMAXCONN ) == SOCKET_ERROR );
-		listen( server, 1 );
-		SOCKET client;
-		int length;
-
-		length = sizeof sin;
-		client = accept( server, (sockaddr*)&sin, &length );
-		printf("Client Accepted\n");
-		*/
-	}
-
-};
-
-class Client
-{
-	WSADATA wsaData;
-	WORD version;
-	int error;
-public:
-	Client()
-	{
-		WSADATA wsaData;
-		SOCKET ConnectSocket = INVALID_SOCKET;
-		struct addrinfo *result = NULL,
-						*ptr = NULL,
-						hints;
-		char *sendbuf = "this is a test";
-		char recvbuf[DEFAULT_BUFLEN];
-		int iResult;
-		int recvbuflen = DEFAULT_BUFLEN;
-    
-		// Validate the parameters
-		/*
-		if (argc != 2) {
-			printf("usage: %s server-name\n", argv[0]);
-			return 1;
-		}
-		*/
-		// Initialize Winsock
-		iResult = WSAStartup(MAKEWORD(2,2), &wsaData);
-		if (iResult != 0) {
-			printf("WSAStartup failed with error: %d\n", iResult);
-			//return 1;
-		}
-
-		ZeroMemory( &hints, sizeof(hints) );
-		hints.ai_family = AF_UNSPEC;
-		hints.ai_socktype = SOCK_STREAM;
-		hints.ai_protocol = IPPROTO_TCP;
-
-		// Resolve the server address and port
-		iResult = getaddrinfo("127.0.0.1", DEFAULT_PORT, &hints, &result);
-		if ( iResult != 0 ) {
-			printf("getaddrinfo failed with error: %d\n", iResult);
-			WSACleanup();
-			//return 1;
-		}
-
-
-		// Attempt to connect to an address until one succeeds
-		for(ptr=result; ptr != NULL ;ptr=ptr->ai_next) {
-
-			// Create a SOCKET for connecting to server
-			ConnectSocket = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol);
-			if (ConnectSocket == INVALID_SOCKET) {
-				printf("socket failed with error: %ld\n", WSAGetLastError());
-				WSACleanup();
-				//return 1;
-			}
-
-			// Connect to server.
-			iResult = connect( ConnectSocket, ptr->ai_addr, (int)ptr->ai_addrlen);
-			if (iResult == SOCKET_ERROR) {
-				closesocket(ConnectSocket);
-				ConnectSocket = INVALID_SOCKET;
-				continue;
-			}
-			break;
-		}
-
-		freeaddrinfo(result);
-
-		if (ConnectSocket == INVALID_SOCKET) {
-			printf("Unable to connect to server!\n");
-			WSACleanup();
-			//return 1;
-		}
-
-		/*
-		SOCKET client;
-		printf("creating a socket\n");
-		client = socket( AF_INET, SOCK_STREAM, 0 );
-		printf("created a socket\n");
-		struct hostent* host;
-		struct in_addr ipv4addr;
-
-		//inet_pton(AF_INET, "165.91.4.176", &ipv4addr);
-		//host = gethostbyaddr((char*)&ipv4addr, sizeof ipv4addr, AF_INET);
-		
-
-
-		struct sockaddr_in sin;
-
-		memset( &sin, 0, sizeof sin );
-
-		sin.sin_family = AF_INET;
-		sin.sin_addr.s_addr = inet_addr("165.91.4.176"); //((struct in_addr *)(host->h_addr))->s_addr;
-		sin.sin_port = htons( 21 );
-		printf("connecting\n");
-		if ( connect( client, (sockaddr*)&sin, sizeof sin ) == SOCKET_ERROR )
-		{
-			//return FALSE;
-			printf("Connecting failed\n");
-		}
-		printf("Connected\n");
-		*/
-	}
-
-};
-
 
 void Drawing::draw()
 {
@@ -821,6 +595,7 @@ void Lines::movetoPt(double x, double y)
 
 void j1_cc_callback(Fl_Widget*, void* v) {
 	arms->rotate(1, 0);
+
 }
 
 void j1_cl_callback(Fl_Widget*, void* v) {
@@ -875,13 +650,71 @@ void paint_callback(Fl_Widget*, void* v) {
 	Fl::check();
 }
 
-int main(int argc, char **argv) {
-	//Fl_Double_Window Network(10, 10, 950, 692, "asdfsadf");
-	//Server* s = new Server();
-	//Client* c = new Client();
+int __cdecl main(int argc, char **argv) {
+	argv[0] = "localhost";
+	std::string IPadd="localhost";
+	std::cout<<"Enter IP address: ";
+	std::cin>>IPadd;
+	argv[0] = (char*)IPadd.c_str();
+	// Validate the parameters
+    /*if (argc != 2) {
+        printf("usage: %s server-name\n", argv[0]);
+        return 1;
+    }
+	*/
+
+    // Initialize Winsock
+    iResult = WSAStartup(MAKEWORD(2,2), &wsaData);
+    if (iResult != 0) {
+        printf("WSAStartup failed with error: %d\n", iResult);
+        return 1;
+    }
+
+    ZeroMemory( &hints, sizeof(hints) );
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_protocol = IPPROTO_TCP;
+
+    // Resolve the server address and port
+    iResult = getaddrinfo(argv[1], DEFAULT_PORT, &hints, &result);
+    if ( iResult != 0 ) {
+        printf("getaddrinfo failed with error: %d\n", iResult);
+        WSACleanup();
+        return 1;
+    }
+
+    // Attempt to connect to an address until one succeeds
+    for(ptr=result; ptr != NULL ;ptr=ptr->ai_next) {
+
+        // Create a SOCKET for connecting to server
+        ConnectSocket = socket(ptr->ai_family, ptr->ai_socktype, 
+            ptr->ai_protocol);
+        if (ConnectSocket == INVALID_SOCKET) {
+            printf("socket failed with error: %ld\n", WSAGetLastError());
+            WSACleanup();
+            return 1;
+        }
+
+        // Connect to server.
+        iResult = connect( ConnectSocket, ptr->ai_addr, (int)ptr->ai_addrlen);
+        if (iResult == SOCKET_ERROR) {
+            closesocket(ConnectSocket);
+            ConnectSocket = INVALID_SOCKET;
+            continue;
+        }
+        break;
+    }
+
+    freeaddrinfo(result);
+
+    if (ConnectSocket == INVALID_SOCKET) {
+        printf("Unable to connect to server!\n");
+        WSACleanup();
+        return 1;
+    }
 	
+	Fl_Double_Window window(10, 10, 950, 692, "PaintBot 3.0 Client");
 	
-	Fl_Double_Window window(10, 10, 950, 692, "PaintBot 2.0");
 	Fl_Box drawSpace(0, 0, 950, 700, "");
 	Fl_PNG_Image backgroundPNG("background.png");
 	drawSpace.image(backgroundPNG);
@@ -898,20 +731,9 @@ int main(int argc, char **argv) {
 
 	//CreateCircle joint2Circ(BX+arms->lines[1]->x1, BY-arms->lines[1]->y1);
 	//CreateCircle joint3Circ(BX+arms->lines[2]->x1, BY-arms->lines[2]->y1);
-	double aa=25.0;
-	char* temp = (char*)(&aa);	//(char*)(&(arms->lines[0]->dh->theta));
-	printf("%f\n", temp);
-	printf("size %d\n", sizeof(temp));
-	for(int i=0; i<9; i++)
-	{
-		printf("%d  ", temp[i]);
-	}
-
-	char doub[8];
-	sprintf(doub, "%f", arms->lines[0]->dh->theta);
-	printf("%d\n", doub[0]);
+  
 	fl_color(50, 40, 255);
-
+/*
 	Fl_Button j1_cc(300, 615, 50, 30, "J1 -");
 	Fl_Button j1_cl(350, 615, 50, 30, "J1 +");
 
@@ -956,11 +778,62 @@ int main(int argc, char **argv) {
 	j3_cl.show();
 
 	paint.show();
-
+*/
 	window.show();
 
 	Fl_Offscreen test = fl_create_offscreen(950, 692);
 	fl_begin_offscreen(test);
 
-	return Fl::run();
+	Fl::redraw();
+	Fl::check();
+
+	while(1){
+		std::stringstream ss;
+		iResult = recv(ConnectSocket, recvbuf, 512, 0);
+		printf("Bytes received: %d\n", iResult);
+		for(int i=0; i<iResult; i++)
+		{
+			std::cout << recvbuf[i];
+		}
+		std::cout << std::endl;
+		ss<<recvbuf;
+		double theta0;
+		double theta1;
+		double theta2;
+		double theta3;
+		int painting;
+		ss>>theta0;
+		ss>>theta1;
+		ss>>theta2;
+		ss>>theta3;
+		ss>>painting;
+		std::cout<<"Double test: "<<theta0<<" "<<theta1<<" "<<theta2<<" "<<theta3<<" "<<painting<<std::endl;
+		arms->lines[0]->dh->theta = theta0;
+		arms->lines[1]->dh->theta = theta1;
+		arms->lines[2]->dh->theta = theta2;
+		arms->lines[3]->dh->theta = theta3;
+		arms->rotate(0,0);
+		if (painting == 1){
+			bool dup=false;
+			for(int i=0; i<pairs.size(); i++)
+			{
+				if(pairs[i].x == (int)(BX+arms->lines[3]->x2-5) && pairs[i].y == (int)(BY-arms->lines[3]->y2-5))
+				{
+					dup = true;
+					break;
+				}
+			}
+			if(!dup)
+			{
+				printf("added in drawing %d\n", moving);
+				pairs.push_back(Pair(BX+arms->lines[3]->x2-5, BY-arms->lines[3]->y2-5));
+			}
+		}
+		Fl::redraw();
+		Fl::check();
+	}
+
+	Fl::run();
+
+	return 0;
 }
