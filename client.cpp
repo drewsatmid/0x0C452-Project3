@@ -787,7 +787,7 @@ int __cdecl main(int argc, char **argv) {
 	Fl::redraw();
 	Fl::check();
 
-	while(1){
+	do{
 		std::stringstream ss;
 		iResult = recv(ConnectSocket, recvbuf, 512, 0);
 		printf("Bytes received: %d\n", iResult);
@@ -831,7 +831,7 @@ int __cdecl main(int argc, char **argv) {
 		}
 		Fl::redraw();
 		Fl::check();
-	}
+	}while(iResult>0);
 
 	Fl::run();
 
