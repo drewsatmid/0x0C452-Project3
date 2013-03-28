@@ -651,11 +651,10 @@ void paint_callback(Fl_Widget*, void* v) {
 }
 
 int __cdecl main(int argc, char **argv) {
-	argv[0] = "localhost";
+	//argv[0] = "localhost";
 	std::string IPadd="localhost";
 	std::cout<<"Enter IP address: ";
 	std::cin>>IPadd;
-	argv[0] = (char*)IPadd.c_str();
 	// Validate the parameters
     /*if (argc != 2) {
         printf("usage: %s server-name\n", argv[0]);
@@ -676,7 +675,7 @@ int __cdecl main(int argc, char **argv) {
     hints.ai_protocol = IPPROTO_TCP;
 
     // Resolve the server address and port
-    iResult = getaddrinfo(argv[1], DEFAULT_PORT, &hints, &result);
+    iResult = getaddrinfo((char*)IPadd.c_str(), DEFAULT_PORT, &hints, &result);
     if ( iResult != 0 ) {
         printf("getaddrinfo failed with error: %d\n", iResult);
         WSACleanup();
