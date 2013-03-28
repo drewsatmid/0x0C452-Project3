@@ -20,6 +20,7 @@
 #include <sstream>
 #include <ctime>
 #include <Fl/Fl_Check_Button.H>
+#include <mutex>
 // Need to link with Ws2_32.lib
 #pragma comment (lib, "Ws2_32.lib")
 // #pragma comment (lib, "Mswsock.lib")
@@ -40,7 +41,7 @@
     int iSendResult;
     char recvbuf[DEFAULT_BUFLEN];
     int recvbuflen = DEFAULT_BUFLEN;
-
+	std::mutex lock;
 struct Pair{
 	int x;
 	int y;
@@ -51,17 +52,15 @@ struct Pair{
 };
 struct Command{
 	DWORD time;
-	char* cmd;
+	//char* cmd;
+	std::string cmd;
 	int size;
-	Command(char* c, int s, int delay)
+	Command(std::string c, int s, int delay)
 	{
 		size = s;
-		cmd = new char[size];
+		cmd = c;
 		time = clock() + delay;
-		for(int i=0; i<size; i++)
-		{
-			cmd[i] = c[i];
-		}
+		std::cout << "IN the struct : " << cmd << "  " << cmd.size() << std::endl;
 	}
 };
 int angle1 = 0;
@@ -76,15 +75,16 @@ std::vector<Command*> command;
 
 Lines* arms;
 
-void SendCommand(char* cmd)
+void SendCommand(std::string cmd)
 {
 	
 	//char *test = "test";
 	//printf("%d\n", DHP[7]);
-	iSendResult = send( ClientSocket, cmd, (int)strlen(cmd), 0 );
-	printf("Sent %d bytes\n", iSendResult);
+	iSendResult = send( ClientSocket, (char*)(cmd.c_str()), cmd.size(), 0 );
+	//printf("Sent %d bytes\n", iSendResult);
 	//printf("SOCKET ERROR = %d\n", SOCKET_ERROR);
 }
+
 void sendToClient(){
 	std::stringstream ss;
 	for(int j=0; j<4; j++)
@@ -93,21 +93,73 @@ void sendToClient(){
 		ss << arms->lines[j]->dh->theta;
 		ss << " ";
 	}
-	if (painting) ss<<'1'<<" ";
-	else if (!painting) ss<<'0'<<" ";
-	std::cout << ss.str();
+	if (painting) ss<<"1 ";
+	else if (!painting) ss<<"0 ";
+	//std::cout << "command : " << ss.str() << std::endl;
 	//SendCommand((char*)ss.str().c_str());
 	
-	
+	//printf("%d %d\n",(int)strlen(ss.str().c_str()), ss.str().size());
 	Command* c;
 	if(delay)
-		c = new Command((char*)(ss.str().c_str()), (int)strlen(ss.str().c_str()), 2000);
+		c = new Command(ss.str(), 0, 2000);	
 	else 
-		c = new Command((char*)(ss.str().c_str()), (int)strlen(ss.str().c_str()), 0);
+		c = new Command(ss.str(), 0, 0);
 	//std::cout << clock() << std::endl;
+	lock.lock();
 	command.push_back(c);
+	lock.unlock();
 }
+DWORD WINAPI Thread1(void *parameter){
+    while(true)
+	{
+		/*
+		if(command.size() >0 && command[0]->time <= clock())
+		{
+			int size;
+			char* cmd;
 
+			lock.lock();
+			size = command[0]->size;
+			cmd = command[0]->cmd;
+			command.erase(command.begin());
+			lock.unlock();
+			SendCommand(cmd,size);
+			
+		}
+		*/
+
+		int send_index=-1;
+		std::stringstream ss;
+		for(int i=0; i<command.size(); i++)
+		{
+			if(command[i]->time <= clock())
+			{
+				send_index=i;
+			}
+			else
+				break;
+		}
+		if(send_index>=0)
+		{
+			ss << send_index+1 << " ";
+			for(int i=0; i<=send_index; i++)
+			{
+					ss << command[i]->cmd;
+			}
+			//std::cout << "Command added" << std::endl;
+			lock.lock();
+			for(int i=send_index; i>=0; i--)
+			{
+				command.erase(command.begin()+i);
+			}
+			lock.unlock();
+			//std::cout << ss.str()<< std::endl;
+			SendCommand(ss.str());
+		}
+		Sleep(30);
+	}
+	return 0;
+}
 void Drawing::draw()
 {
 	fl_color(FL_WHITE);
@@ -712,18 +764,7 @@ void paint_callback(Fl_Widget*, void* v) {
 void delay_callback(Fl_Widget* w, void* v) {
 	delay = !delay;
 }
-DWORD WINAPI Thread1(void *parameter){
-    while(true)
-	{
-		if(command.size() >0 && command[0]->time <= clock())
-		{
-			SendCommand(command[0]->cmd);
-			command.erase(command.begin());
-		}
-		Sleep(10);
-	}
-	return 0;
-}
+
 
 int __cdecl main(int argc, char **argv) {
 
