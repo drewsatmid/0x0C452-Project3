@@ -18,7 +18,8 @@
 #include <string>
 #include <iostream>
 #include <sstream>
-
+#include <ctime>
+#include <Fl/Fl_Check_Button.H>
 // Need to link with Ws2_32.lib
 #pragma comment (lib, "Ws2_32.lib")
 // #pragma comment (lib, "Mswsock.lib")
@@ -48,17 +49,42 @@ struct Pair{
 		y = y1;
 	}
 };
-
+struct Command{
+	DWORD time;
+	char* cmd;
+	int size;
+	Command(char* c, int s, int delay)
+	{
+		size = s;
+		cmd = new char[size];
+		time = clock() + delay;
+		for(int i=0; i<size; i++)
+		{
+			cmd[i] = c[i];
+		}
+	}
+};
 int angle1 = 0;
 int angle2 = 0;
 int angle3 = 0;
 bool painting = false;
+bool delay = false;
 bool moving = false;
 
 std::vector<Pair> pairs;
+std::vector<Command*> command;
 
 Lines* arms;
 
+void SendCommand(char* cmd)
+{
+	
+	//char *test = "test";
+	//printf("%d\n", DHP[7]);
+	iSendResult = send( ClientSocket, cmd, (int)strlen(cmd), 0 );
+	printf("Sent %d bytes\n", iSendResult);
+	//printf("SOCKET ERROR = %d\n", SOCKET_ERROR);
+}
 void sendToClient(){
 	std::stringstream ss;
 	for(int j=0; j<4; j++)
@@ -70,11 +96,16 @@ void sendToClient(){
 	if (painting) ss<<'1'<<" ";
 	else if (!painting) ss<<'0'<<" ";
 	std::cout << ss.str();
-	//char *test = "test";
-	//printf("%d\n", DHP[7]);
-	iSendResult = send( ClientSocket, ss.str().c_str(), (int)strlen(ss.str().c_str()), 0 );
-	printf("Sent %d bytes\n", iSendResult);
-	//printf("SOCKET ERROR = %d\n", SOCKET_ERROR);
+	//SendCommand((char*)ss.str().c_str());
+	
+	
+	Command* c;
+	if(delay)
+		c = new Command((char*)(ss.str().c_str()), (int)strlen(ss.str().c_str()), 2000);
+	else 
+		c = new Command((char*)(ss.str().c_str()), (int)strlen(ss.str().c_str()), 0);
+	//std::cout << clock() << std::endl;
+	command.push_back(c);
 }
 
 void Drawing::draw()
@@ -611,6 +642,7 @@ void Lines::movetoPt(double x, double y)
 		}
 	}
 	moving = false;
+	sendToClient();
 	Fl::redraw();
 	Fl::check();
 }
@@ -676,6 +708,21 @@ void paint_callback(Fl_Widget*, void* v) {
 	}
 	Fl::redraw();
 	Fl::check();
+}
+void delay_callback(Fl_Widget* w, void* v) {
+	delay = !delay;
+}
+DWORD WINAPI Thread1(void *parameter){
+    while(true)
+	{
+		if(command.size() >0 && command[0]->time <= clock())
+		{
+			SendCommand(command[0]->cmd);
+			command.erase(command.begin());
+		}
+		Sleep(10);
+	}
+	return 0;
 }
 
 int __cdecl main(int argc, char **argv) {
@@ -793,9 +840,12 @@ int __cdecl main(int argc, char **argv) {
 	y_plus.callback(y_plus_callback, NULL);
 	y_minus.callback(y_minus_callback, NULL);
 
-	Fl_Button paint(445, 585, 60, 30, "Paint");
-
+	Fl_Check_Button paint(445, 585, 60, 30, "Paint");
+	paint.labelcolor(FL_WHITE);
+	Fl_Check_Button delay(445, 625, 60, 30, "Delay");
+	delay.labelcolor(FL_WHITE);
 	paint.callback(paint_callback, NULL);
+	delay.callback(delay_callback, NULL);
 
 	j1_cc.show();
 	j1_cl.show();
@@ -813,5 +863,6 @@ int __cdecl main(int argc, char **argv) {
 	Fl_Offscreen test = fl_create_offscreen(950, 692);
 	fl_begin_offscreen(test);
 
+	HANDLE t1 = CreateThread(0, 0, Thread1, NULL, 0, 0);
 	return Fl::run();
 }
