@@ -55,6 +55,66 @@ std::vector<Pair> pairs;
 
 Lines* arms;
 
+
+DWORD WINAPI Thread1(void *parameter){
+    while(1)
+	{
+		do{
+			std::stringstream ss;
+			iResult = recv(ConnectSocket, recvbuf, 512, 0);
+			//printf("Bytes received: %d\n", iResult);
+			for(int i=0; i<iResult; i++)
+			{
+				std::cout << recvbuf[i];
+			}
+			//std::cout << std::endl;
+			ss<<recvbuf;
+			int num;
+			ss >> num;
+			for(int i=0; i<num; i++)
+			{
+				double theta0;
+				double theta1;
+				double theta2;
+				double theta3;
+				int painting;
+				ss>>theta0;
+				ss>>theta1;
+				ss>>theta2;
+				ss>>theta3;
+				ss>>painting;
+				//std::cout<<"Double test: "<<theta0<<" "<<theta1<<" "<<theta2<<" "<<theta3<<" "<<painting<<std::endl;
+				arms->lines[0]->dh->theta = theta0;
+				arms->lines[1]->dh->theta = theta1;
+				arms->lines[2]->dh->theta = theta2;
+				arms->lines[3]->dh->theta = theta3;
+				arms->rotate(0,0);
+				if (painting == 1){
+					bool dup=false;
+					for(int i=0; i<pairs.size(); i++)
+					{
+						if(pairs[i].x == (int)(BX+arms->lines[3]->x2-5) && pairs[i].y == (int)(BY-arms->lines[3]->y2-5))
+						{
+							dup = true;
+							break;
+						}
+					}
+					if(!dup)
+					{
+						//printf("added in drawing %d\n", moving);
+						pairs.push_back(Pair(BX+arms->lines[3]->x2-5, BY-arms->lines[3]->y2-5));
+					}
+				}
+			
+			}
+			Fl::redraw();
+			Fl::check();
+		}while(iResult>0);
+	}
+	
+	return 0;
+}
+
 void Drawing::draw()
 {
 	fl_color(FL_WHITE);
@@ -785,53 +845,7 @@ int __cdecl main(int argc, char **argv) {
 
 	Fl::redraw();
 	Fl::check();
-
-	do{
-		std::stringstream ss;
-		iResult = recv(ConnectSocket, recvbuf, 512, 0);
-		printf("Bytes received: %d\n", iResult);
-		for(int i=0; i<iResult; i++)
-		{
-			std::cout << recvbuf[i];
-		}
-		std::cout << std::endl;
-		ss<<recvbuf;
-		double theta0;
-		double theta1;
-		double theta2;
-		double theta3;
-		int painting;
-		ss>>theta0;
-		ss>>theta1;
-		ss>>theta2;
-		ss>>theta3;
-		ss>>painting;
-		std::cout<<"Double test: "<<theta0<<" "<<theta1<<" "<<theta2<<" "<<theta3<<" "<<painting<<std::endl;
-		arms->lines[0]->dh->theta = theta0;
-		arms->lines[1]->dh->theta = theta1;
-		arms->lines[2]->dh->theta = theta2;
-		arms->lines[3]->dh->theta = theta3;
-		arms->rotate(0,0);
-		if (painting == 1){
-			bool dup=false;
-			for(int i=0; i<pairs.size(); i++)
-			{
-				if(pairs[i].x == (int)(BX+arms->lines[3]->x2-5) && pairs[i].y == (int)(BY-arms->lines[3]->y2-5))
-				{
-					dup = true;
-					break;
-				}
-			}
-			if(!dup)
-			{
-				printf("added in drawing %d\n", moving);
-				pairs.push_back(Pair(BX+arms->lines[3]->x2-5, BY-arms->lines[3]->y2-5));
-			}
-		}
-		Fl::redraw();
-		Fl::check();
-	}while(iResult>0);
-
+	HANDLE t1 = CreateThread(0, 0, Thread1, NULL, 0, 0);
 	Fl::run();
 
 	return 0;
